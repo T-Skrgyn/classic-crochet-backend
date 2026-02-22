@@ -6,15 +6,22 @@ require("dotenv").config();
 const app = express();
 
 /* --------------------------------------------------
-   CORS
-   Allows Netlify + local dev
+   CORS (Netlify + Local)
 -------------------------------------------------- */
 app.use(cors({
-  origin: [
-    "https://animated-pudding-afc70c.netlify.app", // your netlify
-    "http://127.0.0.1:3000",
-    "http://localhost:3000"
-  ],
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+
+    if (
+      origin.includes("netlify.app") ||
+      origin.includes("localhost") ||
+      origin.includes("127.0.0.1")
+    ) {
+      return cb(null, true);
+    }
+
+    return cb(new Error("CORS blocked: " + origin), false);
+  },
   methods: ["GET", "POST", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
@@ -22,10 +29,10 @@ app.use(cors({
 app.use(express.json());
 
 /* --------------------------------------------------
-   Health Check (important for Render)
+   HEALTH CHECK (Render needs this)
 -------------------------------------------------- */
 app.get("/", (req, res) => {
-  res.send("Classic Crochet API running");
+  res.send("Classic Crochet API running 🚀");
 });
 
 app.get("/health", (req, res) => {
@@ -33,14 +40,35 @@ app.get("/health", (req, res) => {
 });
 
 /* --------------------------------------------------
-   MongoDB Connection
+   MONGODB CONNECT
 -------------------------------------------------- */
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch(err => console.error("❌ Mongo error:", err));
+mongoose.set("strictQuery", true);
+
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 15000,
+})
+.then(() => {
+  console.log("✅ MongoDB connected");
+})
+.catch(err => {
+  console.error("❌ MongoDB connection failed:", err.message);
+});
 
 /* --------------------------------------------------
-   Schema
+   BLOCK REQUESTS IF DB NOT READY
+-------------------------------------------------- */
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(500).json({
+      error: "MongoDB not connected",
+      state: mongoose.connection.readyState
+    });
+  }
+  next();
+});
+
+/* --------------------------------------------------
+   SCHEMA
 -------------------------------------------------- */
 const productSchema = new mongoose.Schema({
   title: String,
@@ -59,9 +87,10 @@ const Product = mongoose.model("Product", productSchema);
 // GET products
 app.get("/api/products", async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
+    const data = await Product.find().sort({ createdAt: -1 });
+    res.json(data);
   } catch (err) {
+    console.error("GET ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -69,9 +98,10 @@ app.get("/api/products", async (req, res) => {
 // ADD product
 app.post("/api/products", async (req, res) => {
   try {
-    const newProduct = await Product.create(req.body);
-    res.json(newProduct);
+    const saved = await Product.create(req.body);
+    res.json(saved);
   } catch (err) {
+    console.error("POST ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -82,15 +112,16 @@ app.delete("/api/products/:id", async (req, res) => {
     await Product.findByIdAndDelete(req.params.id);
     res.json({ message: "Deleted" });
   } catch (err) {
+    console.error("DELETE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
 /* --------------------------------------------------
-   Start Server
+   START SERVER
 -------------------------------------------------- */
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log("🚀 Server running on port", PORT);
 });
