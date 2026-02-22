@@ -5,98 +5,92 @@ require("dotenv").config();
 
 const app = express();
 
-/**
- * ✅ CORS (ALLOW ALL) - to kill 403 forever during local dev
- * Later you can restrict origins.
- */
-app.use(cors());
+/* --------------------------------------------------
+   CORS
+   Allows Netlify + local dev
+-------------------------------------------------- */
+app.use(cors({
+  origin: [
+    "https://animated-pudding-afc70c.netlify.app", // your netlify
+    "http://127.0.0.1:3000",
+    "http://localhost:3000"
+  ],
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
+
 app.use(express.json());
 
-/**
- * ✅ Debug middleware so you can confirm you are hitting THIS server
- */
-app.use((req, res, next) => {
-  console.log("HIT:", req.method, req.url, "Origin:", req.headers.origin || "none");
-  res.setHeader("X-SERVER", "classic-crochet-api");
-  next();
+/* --------------------------------------------------
+   Health Check (important for Render)
+-------------------------------------------------- */
+app.get("/", (req, res) => {
+  res.send("Classic Crochet API running");
 });
 
-/**
- * ✅ Health check
- */
 app.get("/health", (req, res) => {
-  res.json({ ok: true, service: "classic-crochet-api" });
+  res.json({ status: "ok" });
 });
 
-/**
- * ✅ MongoDB Connection
- */
-const MONGO_URI = process.env.MONGO_URI;
-if (!MONGO_URI) {
-  console.error("❌ MONGO_URI missing in .env");
-  process.exit(1);
-}
+/* --------------------------------------------------
+   MongoDB Connection
+-------------------------------------------------- */
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch(err => console.error("❌ Mongo error:", err));
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("✅ Connected to MongoDB"))
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-    process.exit(1);
-  });
-
-/**
- * ✅ Product Schema
- */
+/* --------------------------------------------------
+   Schema
+-------------------------------------------------- */
 const productSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  desc: { type: String, required: true },
-  image: { type: String, required: true },
-  link: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
+  title: String,
+  desc: String,
+  image: String,
+  link: String,
+  createdAt: { type: Date, default: Date.now }
 });
 
 const Product = mongoose.model("Product", productSchema);
 
-/**
- * ✅ API Routes
- */
+/* --------------------------------------------------
+   ROUTES
+-------------------------------------------------- */
 
-// Get all products
+// GET products
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
-    return res.json(products);
+    res.json(products);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Add a product
+// ADD product
 app.post("/api/products", async (req, res) => {
   try {
-    const savedProduct = await Product.create(req.body);
-    return res.json(savedProduct);
+    const newProduct = await Product.create(req.body);
+    res.json(newProduct);
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Delete a product
+// DELETE product
 app.delete("/api/products/:id", async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
-    return res.json({ message: "Product deleted" });
+    res.json({ message: "Deleted" });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-/**
- * ✅ Start server
- * Use 5001 to avoid some other process sitting on 5000
- */
+/* --------------------------------------------------
+   Start Server
+-------------------------------------------------- */
 const PORT = process.env.PORT || 5001;
+
 app.listen(PORT, () => {
-  console.log(`✅ Server running on http://127.0.0.1:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

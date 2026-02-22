@@ -464,7 +464,11 @@
     <!-- MongoDB Fetch Logic -->
     <script>
         // Using 127.0.0.1 instead of localhost for more robust Mac connectivity
-        const API_URL = 'http://127.0.0.1:5001/api/products'; 
+        const API_URL =
+  location.hostname === "127.0.0.1" || location.hostname === "localhost"
+    ? "http://127.0.0.1:5001/api/products"
+    : "https://classic-crochet-backend.onrender.com/api/products";
+
         let isAdmin = false;
         let currentProducts = [];
 
