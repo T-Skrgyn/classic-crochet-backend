@@ -22,7 +22,8 @@ app.use(cors({
 
     return cb(new Error("CORS blocked: " + origin), false);
   },
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  // ADDED "PUT" SO YOU CAN EDIT PRODUCTS
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
 
@@ -68,13 +69,15 @@ app.use((req, res, next) => {
 });
 
 /* --------------------------------------------------
-   SCHEMA
+   SCHEMA (UPDATED WITH NEW LINKS)
 -------------------------------------------------- */
 const productSchema = new mongoose.Schema({
   title: String,
   desc: String,
   image: String,
-  link: String,
+  link: String,           // Meesho Link
+  amazonLink: String,     // NEW: Amazon Link
+  flipkartLink: String,   // NEW: Flipkart Link
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -102,6 +105,21 @@ app.post("/api/products", async (req, res) => {
     res.json(saved);
   } catch (err) {
     console.error("POST ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE (EDIT) product - NEW ROUTE
+app.put("/api/products/:id", async (req, res) => {
+  try {
+    const updated = await Product.findByIdAndUpdate(
+      req.params.id, 
+      req.body, 
+      { new: true } // Returns the updated document instead of the old one
+    );
+    res.json(updated);
+  } catch (err) {
+    console.error("PUT ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
